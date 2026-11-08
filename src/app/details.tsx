@@ -31,6 +31,39 @@ const WEATHER_IMAGES: Record<string, any> = {
 
 const WEEK_DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+// Convert "2026-11-09T07:25" -> "7:25 AM" purely by string parsing (no new Date)
+function format12h(timeStr: unknown): string {
+  if (typeof timeStr !== "string" || timeStr.length < 16) {
+    return typeof timeStr === "string" ? timeStr : "";
+  }
+  const hh = parseInt(timeStr.slice(11, 13), 10);
+  const mm = timeStr.slice(14, 16);
+  const ampm = hh >= 12 ? "PM" : "AM";
+  const h12 = hh % 12 === 0 ? 12 : hh % 12;
+  return `${h12}:${mm} ${ampm}`;
+}
+
+function airQualityLabel(usAqi: number): { level: number; label: string } {
+  const level = Math.min(10, Math.max(1, Math.ceil(usAqi / 30)));
+  const label =
+    level <= 3
+      ? "Low Health Risk"
+      : level <= 6
+        ? "Moderate Health Risk"
+        : level <= 9
+          ? "High Health Risk"
+          : "Very High Health Risk";
+  return { level, label };
+}
+
+function uvLevelText(uvIndex: number): string {
+  if (uvIndex < 3) return "Low";
+  if (uvIndex <= 5) return "Moderate";
+  if (uvIndex <= 7) return "High";
+  if (uvIndex <= 10) return "Very High";
+  return "Extreme";
+}
+
 export default function DetailsScreen() {
   const params = useLocalSearchParams<{
     lat: string;
@@ -47,6 +80,7 @@ export default function DetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [weatherData, setWeatherData] = useState<any>(null);
+  const [airQualityData, setAirQualityData] = useState<any>(null);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const forecastScrollRef = useRef<ScrollViewInstance | null>(null);
   const forecastScrollX = useRef(0);
@@ -66,6 +100,7 @@ export default function DetailsScreen() {
         getAirQuality(lat, lon),
       ]);
       setWeatherData(weather);
+      setAirQualityData(airQuality);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load weather data");
     } finally {
@@ -95,8 +130,15 @@ export default function DetailsScreen() {
         </View>
       );
     }
-    const { todayMax, todayMin } = weatherData;
+    const { todayMax, todayMin, sunrise, sunset, uvIndex } = weatherData;
     const cityDisplay = country ? `${city}, ${country}` : city;
+    const usAqi: number | null =
+      airQualityData && typeof airQualityData.usAqi === "number"
+        ? airQualityData.usAqi
+        : null;
+    const air =
+      usAqi != null ? airQualityLabel(usAqi) : { level: null, label: "" };
+    const uv = typeof uvIndex === "number" ? uvIndex : null;
     return (
       <>
         <View style={styles.header}>
@@ -176,6 +218,39 @@ export default function DetailsScreen() {
           >
             <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.7)" />
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.cardRow}>
+            <Ionicons name="leaf-outline" size={14} color="#FFFFFF" />
+            <Text style={styles.cardLabel}>AIR QUALITY</Text>
+          </View>
+          <Text style={styles.cardBig}>
+            {air.level}-{air.label}
+          </Text>
+          <View style={styles.cardBottomRow}>
+            <Text style={styles.cardBottomText}>See more</Text>
+            <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
+          </View>
+        </View>
+
+        <View style={styles.smallCardsRow}>
+          <View style={styles.smallCard}>
+            <View style={styles.cardRow}>
+              <Ionicons name="sunny-outline" size={14} color="#FFFFFF" />
+              <Text style={styles.cardLabel}>SUNRISE</Text>
+            </View>
+            <Text style={styles.bigText}>{format12h(sunrise)}</Text>
+            <Text style={styles.subText}>Sunset: {format12h(sunset)}</Text>
+          </View>
+          <View style={styles.smallCard}>
+            <View style={styles.cardRow}>
+              <Ionicons name="sunny-outline" size={14} color="#FFFFFF" />
+              <Text style={styles.cardLabel}>UV INDEX</Text>
+            </View>
+            <Text style={styles.bigText}>{uv != null ? Math.round(uv) : "--"}</Text>
+            <Text style={styles.subText}>{uv != null ? uvLevelText(uv) : "--"}</Text>
+          </View>
         </View>
         <View style={styles.middle}>
           {/* Empty space for upcoming prompts */}
@@ -296,6 +371,71 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#FFFFFF",
     fontFamily: "Poppins_400Regular",
+  },
+  card: {
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
+    borderRadius: 24,
+    padding: 18,
+    marginHorizontal: 20,
+    marginTop: 24,
+  },
+  cardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 10,
+  },
+  cardLabel: {
+    fontSize: 11,
+    letterSpacing: 1,
+    color: "rgba(255,255,255,0.8)",
+    fontFamily: "Poppins_400Regular",
+  },
+  cardBig: {
+    fontSize: 20,
+    color: "#FFFFFF",
+    fontFamily: "Poppins_600SemiBold",
+  },
+  cardBottomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.15)",
+    marginTop: 12,
+    paddingTop: 10,
+  },
+  cardBottomText: {
+    fontSize: 13,
+    color: "#FFFFFF",
+    fontFamily: "Poppins_400Regular",
+  },
+  smallCardsRow: {
+    flexDirection: "row",
+    marginHorizontal: 20,
+    marginTop: 16,
+    gap: 16,
+  },
+  smallCard: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
+    borderRadius: 20,
+    padding: 16,
+  },
+  bigText: {
+    fontSize: 22,
+    color: "#FFFFFF",
+    fontFamily: "Poppins_600SemiBold",
+  },
+  subText: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.8)",
+    fontFamily: "Poppins_400Regular",
+    marginTop: 4,
   },
   middle: {
     flex: 1,
