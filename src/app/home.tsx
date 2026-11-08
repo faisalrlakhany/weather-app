@@ -122,6 +122,18 @@ export default function HomeScreen() {
     transform: [{ translateY: (1 - cardAnim.value) * 30 }],
   }));
 
+  // Subtle fade-in for the house illustration
+  const houseAnim = useSharedValue(0);
+  useEffect(() => {
+    houseAnim.value = withDelay(
+      350,
+      withTiming(1, { duration: 900, easing: Easing.out(Easing.cubic) })
+    );
+  }, []);
+  const houseStyle = useAnimatedStyle(() => ({
+    opacity: houseAnim.value,
+  }));
+
   // Loading skeleton
   if (loading) {
     return (
@@ -237,16 +249,18 @@ export default function HomeScreen() {
           </View>
 
           {/* House illustration */}
-          <Image
-            source={HOUSE_IMAGE}
-            style={{
-              width: SCREEN_WIDTH * 0.6,
-              height: SCREEN_WIDTH * 0.6 * 0.6,
-              alignSelf: "center",
-              marginBottom: -30,
-            }}
-            resizeMode="contain"
-          />
+          <Animated.View style={[styles.houseWrap, houseStyle]}>
+            <Image
+              source={HOUSE_IMAGE}
+              style={{
+                width: SCREEN_WIDTH * 0.68,
+                aspectRatio: 1.1,
+                marginTop: 4,
+              }}
+              resizeMode="contain"
+            />
+            <View style={styles.houseGlow} />
+          </Animated.View>
 
           {/* Today glass card */}
           <Animated.View style={cardStyle}>
@@ -385,7 +399,7 @@ const styles = StyleSheet.create({
   heroSection: {
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 8,
+    marginBottom: 0,
   },
 
   temperature: {
@@ -410,6 +424,26 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_400Regular",
     textAlign: "center",
     marginTop: 2,
+  },
+
+  houseWrap: {
+    alignSelf: "center",
+    marginTop: 0,
+    marginBottom: 8,
+  },
+
+  houseGlow: {
+    width: "50%",
+    height: 18,
+    borderRadius: 50,
+    backgroundColor: "rgba(160,120,255,0.35)",
+    shadowColor: "#A97BE0",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 20,
+    elevation: 0,
+    marginTop: -8,
+    alignSelf: "center",
   },
 
   glassCard: {
