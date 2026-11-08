@@ -1,11 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Location from "expo-location";
 import * as NavigationBar from "expo-navigation-bar";
 import { useRouter } from "expo-router";
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   StatusBar,
   StyleSheet,
@@ -65,6 +67,7 @@ export default function HomeScreen() {
   const [country, setCountry] = useState<string>("");
   const [lat, setLat] = useState<number>(51.5074);
   const [lon, setLon] = useState<number>(-0.1278);
+  const [locating, setLocating] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -95,13 +98,114 @@ export default function HomeScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
   // Android navigation bar: match the gradient bottom color, no white strip
   useEffect(() => {
     NavigationBar.setStyle("light");
+  }, []);
+
+  // On app open: silently request location and fetch the device's weather,
+  // falling back to the default city (London) if permission/GPS unavailable.
+  const fetchInitialLocation = useCallback(async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === "granted") {
+        const enabled = await Location.hasServicesEnabledAsync();
+        if (enabled) {
+          try {
+            // Never hang forever: 10s timeout on the GPS fix
+            const pos = await Promise.race([
+              Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced,
+              }),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("location timeout")), 10000)
+              ),
+            ]);
+            const { latitude, longitude } = pos.coords;
+            const [weather, airQuality] = await Promise.all([
+              getWeather(latitude, longitude),
+              getAirQuality(latitude, longitude),
+            ]);
+            setWeatherData(weather);
+            setLat(latitude);
+            setLon(longitude);
+            try {
+              const places = await Location.reverseGeocodeAsync({
+                latitude,
+                longitude,
+              });
+              const p = places[0];
+              setCityName(
+                p?.city || p?.subregion || p?.region || "Current location"
+              );
+              setCountry(p?.country || "");
+            } catch {
+              // reverse geocode is best-effort only
+            }
+            return;
+          } catch {
+            // GPS timed out or failed -> fall back to the default city below
+          } finally {
+            setLoading(false);
+          }
+        }
+      }
+    } catch {
+      // fall back to the default city below
+    }
+    await fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    fetchInitialLocation();
+  }, [fetchInitialLocation]);
+
+  const handleCurrentLocation = useCallback(async () => {
+    setLocating(true);
+    setError(null);
+    setLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setLoading(false);
+        setLocating(false);
+        Alert.alert(
+          "Location permission needed",
+          "Please allow location permission to see your local weather."
+        );
+        return;
+      }
+      const enabled = await Location.hasServicesEnabledAsync();
+      if (!enabled) {
+        setLoading(false);
+        setLocating(false);
+        Alert.alert(
+          "Location is off",
+          "Please turn on GPS / location services on your phone."
+        );
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const { latitude, longitude } = pos.coords;
+      const [weather, airQuality] = await Promise.all([
+        getWeather(latitude, longitude),
+        getAirQuality(latitude, longitude),
+      ]);
+      setWeatherData(weather);
+      setLat(latitude);
+      setLon(longitude);
+      const places = await Location.reverseGeocodeAsync({ latitude, longitude });
+      const p = places[0];
+      setCityName(p?.city || p?.subregion || p?.region || "Current location");
+      setCountry(p?.country || "");
+    } catch (err) {
+      setError("Could not get your location. Please try again.");
+    } finally {
+      setLoading(false);
+      setLocating(false);
+    }
   }, []);
 
   // Floating animation for hero weather image
@@ -278,7 +382,11 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.bottomBarRow}>
-            <TouchableOpacity onPress={fetchData}>
+            <TouchableOpacity
+              onPress={handleCurrentLocation}
+              disabled={locating}
+              style={locating ? { opacity: 0.5 } : undefined}
+            >
               <Ionicons name="location-outline" size={26} color="#FFFFFF" />
             </TouchableOpacity>
             <TouchableOpacity>

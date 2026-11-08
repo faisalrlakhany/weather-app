@@ -37,6 +37,12 @@
           "imageWidth": 76
         }
       ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow this app to use your location to show local weather."
+        }
+      ],
       "expo-font"
     ],
     "experiments": {
