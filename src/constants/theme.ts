@@ -1,6 +1,5 @@
-import { Dimensions, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { blur } from "expo-blur";
+import { Dimensions, StyleSheet } from "react-native";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
