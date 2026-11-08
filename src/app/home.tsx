@@ -63,6 +63,8 @@ export default function HomeScreen() {
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [cityName, setCityName] = useState<string>(DEFAULT_CITY);
   const [country, setCountry] = useState<string>("");
+  const [lat, setLat] = useState<number>(51.5074);
+  const [lon, setLon] = useState<number>(-0.1278);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -77,6 +79,8 @@ export default function HomeScreen() {
       const city = cities[0];
       setCityName(city.name);
       setCountry(city.country);
+      setLat(city.latitude);
+      setLon(city.longitude);
 
       const [weather, airQuality] = await Promise.all([
         getWeather(city.latitude, city.longitude),
@@ -280,7 +284,14 @@ export default function HomeScreen() {
             <TouchableOpacity>
               <Ionicons name="add-circle-outline" size={32} color="#FFFFFF" />
             </TouchableOpacity>
-            <TouchableOpacity>
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: "/details" as never,
+                  params: { lat: String(lat), lon: String(lon), city: cityName, country },
+                })
+              }
+            >
               <Ionicons name="menu-outline" size={28} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
