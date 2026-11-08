@@ -100,7 +100,7 @@ export default function HomeScreen() {
   const floatAnim = useSharedValue(0);
   useEffect(() => {
     floatAnim.value = withRepeat(
-      withTiming(-12, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
+      withTiming(-12, { duration: 1250, easing: Easing.inOut(Easing.ease) }),
       -1,
       true
     );
@@ -224,8 +224,9 @@ export default function HomeScreen() {
               <Image
                 source={currentImage}
                 style={{
-                  width: SCREEN_WIDTH * 0.55,
-                  height: SCREEN_WIDTH * 0.55,
+                  width: SCREEN_WIDTH * 0.5,
+                  height: SCREEN_WIDTH * 0.5,
+                  aspectRatio: 1,
                 }}
                 resizeMode="contain"
               />
@@ -388,27 +389,27 @@ const styles = StyleSheet.create({
   },
 
   temperature: {
-    fontSize: 72,
+    fontSize: 64,
     color: "#FFFFFF",
     fontFamily: "Poppins_700Bold",
     textAlign: "center",
-    marginTop: 4,
+    marginTop: -8,
   },
 
   conditionLabel: {
     fontSize: 16,
-    color: "rgba(255,255,255,0.65)",
-    fontFamily: "Poppins_400Regular",
+    color: "#FFFFFF",
+    fontFamily: "Poppins_600SemiBold",
     textAlign: "center",
-    marginTop: 4,
+    marginTop: 2,
   },
 
   maxMinDetail: {
     fontSize: 14,
-    color: "rgba(255,255,255,0.7)",
+    color: "rgba(255,255,255,0.85)",
     fontFamily: "Poppins_400Regular",
     textAlign: "center",
-    marginTop: 4,
+    marginTop: 2,
   },
 
   glassCard: {
