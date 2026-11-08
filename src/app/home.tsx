@@ -214,9 +214,8 @@ export default function HomeScreen() {
           {/* Header */}
           <View style={styles.headerSection}>
             <Text style={styles.locationText}>
-              {cityName}, {country}
+              {cityName}
             </Text>
-            <Text style={styles.maxMinText}>{maxMinStr}</Text>
           </View>
 
           {/* Hero */}
@@ -233,6 +232,7 @@ export default function HomeScreen() {
             </Animated.View>
             <Text style={styles.temperature}>{Math.round(current.temperature)}°</Text>
             <Text style={styles.conditionLabel}>{conditionLabel}</Text>
+            <Text style={styles.maxMinDetail}>{maxMinStr}</Text>
           </View>
 
           {/* House illustration */}
@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
   },
 
   locationText: {
-    fontSize: 20,
+    fontSize: 18,
     color: "#FFFFFF",
     fontFamily: "Poppins_600SemiBold",
     textAlign: "center",
