@@ -3,7 +3,6 @@ import {
   StyleSheet,
   Text,
   View,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   useWindowDimensions,
@@ -187,7 +186,7 @@ export default function HomeScreen() {
       ? "Precipitations"
       : current.weatherLabel;
 
-  const maxMinStr = `Max: ${Math.round(todayMax)}° Min: ${Math.round(todayMin)}°`;
+  const maxMinStr = `Max: ${Math.round(todayMax)}°  Min: ${Math.round(todayMin)}°`;
 
   const formattedDate = `${new Date().toLocaleDateString("en-US", { month: "short" })}, ${new Date().getDate()}`;
 
@@ -216,12 +215,11 @@ export default function HomeScreen() {
         end={{ x: 0, y: 1 }}
         style={styles.gradient}
       >
-        <ScrollView
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingTop: insets.top + 12, paddingBottom: 100 },
+        <View
+          style={[
+            styles.content,
+            { paddingTop: insets.top + 8 },
           ]}
-          showsVerticalScrollIndicator={false}
         >
           {/* Header */}
           <View style={styles.headerSection}>
@@ -232,12 +230,12 @@ export default function HomeScreen() {
 
           {/* Hero */}
           <View style={styles.heroSection}>
-            <Animated.View style={floatStyle}>
+            <Animated.View style={[floatStyle, { marginTop: 16 }]}>
               <Image
                 source={currentImage}
                 style={{
-                  width: SCREEN_WIDTH * 0.5,
-                  height: SCREEN_WIDTH * 0.5,
+                  width: SCREEN_WIDTH * 0.42,
+                  height: SCREEN_WIDTH * 0.42,
                   aspectRatio: 1,
                 }}
                 resizeMode="contain"
@@ -249,39 +247,49 @@ export default function HomeScreen() {
           </View>
 
           {/* House illustration */}
-          <Animated.View style={[styles.houseWrap, houseStyle]}>
-            <Image
-              source={HOUSE_IMAGE}
-              style={{
-                width: SCREEN_WIDTH * 0.68,
-                aspectRatio: 1.1,
-                marginTop: 4,
-              }}
-              resizeMode="contain"
-            />
-            <View style={styles.houseGlow} />
-          </Animated.View>
+          <View style={styles.houseSection}>
+            <Animated.View style={houseStyle}>
+              <Image
+                source={HOUSE_IMAGE}
+                style={{
+                  width: "90%",
+                  aspectRatio: 1.15,
+                  alignSelf: "center",
+                  marginBottom: -20,
+                  zIndex: 2,
+                }}
+                resizeMode="contain"
+              />
+            </Animated.View>
+          </View>
 
-          {/* Today glass card */}
-          <Animated.View style={cardStyle}>
-            <View style={styles.glassCard}>
-              <BlurView intensity={25} tint="light" style={StyleSheet.absoluteFill} />
+          {/* Today card */}
+          <Animated.View style={[styles.todayCardWrap, cardStyle, { marginBottom: 70 + insets.bottom }]}>
+            <LinearGradient
+              colors={["#3A2A8C", "#4B2F9E", "#6A3FB0"]}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={styles.glassCard}
+            >
               <View style={styles.glassCardContent}>
                 <View style={styles.todayHeader}>
                   <Text style={styles.todayTitle}>Today</Text>
                   <Text style={styles.todayDate}>{formattedDate}</Text>
                 </View>
 
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.hourlyList}
-                >
-                  {hourly.map((hour, index) => {
-                    const hourTime = new Date(hour.time).toLocaleTimeString("en-US", {
-                      hour: "numeric",
-                      hour12: true,
-                    });
+                <View style={styles.hourlyList}>
+                  {(() => {
+                    const nowHour = new Date().getHours();
+                    let startIdx = hourly.findIndex(
+                      (h) => new Date(h.time).getHours() >= nowHour
+                    );
+                    if (startIdx < 0) startIdx = 0;
+                    return hourly.slice(startIdx, startIdx + 4);
+                  })().map((hour, index) => {
+                    const d = new Date(hour.time);
+                    const hh = String(d.getHours()).padStart(2, "0");
+                    const mm = String(d.getMinutes()).padStart(2, "0");
+                    const hourTime = `${hh}.${mm}`;
                     const night = isNightHour(hour.time);
                     const hourIconName = getWeatherImageKey(current.iconName, !night);
                     const hourImage =
@@ -289,7 +297,7 @@ export default function HomeScreen() {
                     return (
                       <React.Fragment key={index}>
                         <View style={styles.hourlyItem}>
-                          <Text style={styles.hourlyTemp}>{Math.round(hour.temperature)}°</Text>
+                          <Text style={styles.hourlyTemp}>{Math.round(hour.temperature)}°C</Text>
                           <Image
                             source={hourImage}
                             style={{ width: 40, height: 40, marginVertical: 8 }}
@@ -297,17 +305,29 @@ export default function HomeScreen() {
                           />
                           <Text style={styles.hourlyTime}>{hourTime}</Text>
                         </View>
-                        {index < hourly.length - 1 && (
-                          <View style={styles.divider} />
-                        )}
+                        {index < 3 && <View style={styles.divider} />}
                       </React.Fragment>
                     );
                   })}
-                </ScrollView>
+                </View>
               </View>
-            </View>
+            </LinearGradient>
           </Animated.View>
-        </ScrollView>
+        </View>
+
+        {/* Bottom bar */}
+        <LinearGradient
+          colors={["#5A33A8", "#7A44B8"]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={[styles.bottomBar, { height: 70 + insets.bottom }]}
+        >
+          <View style={styles.bottomBarIcons}>
+            <View style={styles.bottomBarIcon} />
+            <View style={styles.bottomBarIcon} />
+            <View style={styles.bottomBarIcon} />
+          </View>
+        </LinearGradient>
       </LinearGradient>
     </View>
   );
@@ -325,9 +345,8 @@ const styles = StyleSheet.create({
     height: "100%",
   },
 
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
+  content: {
+    flex: 1,
   },
 
   loadingContainer: {
@@ -378,7 +397,6 @@ const styles = StyleSheet.create({
 
   headerSection: {
     alignItems: "center",
-    marginBottom: 12,
   },
 
   locationText: {
@@ -388,26 +406,18 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  maxMinText: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.7)",
-    fontFamily: "Poppins_400Regular",
-    textAlign: "center",
-    marginTop: 4,
-  },
-
   heroSection: {
+    flex: 1.2,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 0,
   },
 
   temperature: {
-    fontSize: 64,
+    fontSize: 60,
     color: "#FFFFFF",
     fontFamily: "Poppins_700Bold",
     textAlign: "center",
-    marginTop: -8,
+    marginTop: -6,
   },
 
   conditionLabel: {
@@ -415,7 +425,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontFamily: "Poppins_600SemiBold",
     textAlign: "center",
-    marginTop: 2,
+    marginTop: 0,
   },
 
   maxMinDetail: {
@@ -426,48 +436,41 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  houseWrap: {
-    alignSelf: "center",
-    marginTop: 0,
-    marginBottom: 8,
+  houseSection: {
+    flex: 1.6,
+    justifyContent: "flex-end",
+    alignItems: "center",
+    overflow: "visible",
   },
 
-  houseGlow: {
-    width: "50%",
-    height: 18,
-    borderRadius: 50,
-    backgroundColor: "rgba(160,120,255,0.35)",
-    shadowColor: "#A97BE0",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 20,
-    elevation: 0,
-    marginTop: -8,
-    alignSelf: "center",
+  todayCardWrap: {
+    marginHorizontal: 0,
+    zIndex: 1,
   },
 
   glassCard: {
-    borderRadius: 28,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderTopWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.25)",
-    backgroundColor: "rgba(255,255,255,0.14)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
   },
 
   glassCardContent: {
-    padding: 20,
+    padding: 0,
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
 
   todayHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    paddingHorizontal: 24,
+    paddingTop: 18,
+    paddingBottom: 8,
   },
 
   todayTitle: {
@@ -485,12 +488,15 @@ const styles = StyleSheet.create({
   hourlyList: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-around",
+    backgroundColor: "rgba(20,10,60,0.30)",
+    paddingVertical: 16,
+    borderWidth: 0,
   },
 
   hourlyItem: {
     alignItems: "center",
-    minWidth: 60,
-    paddingHorizontal: 8,
+    flex: 1,
   },
 
   divider: {
@@ -508,9 +514,31 @@ const styles = StyleSheet.create({
   },
 
   hourlyTemp: {
-    fontSize: 16,
+    fontSize: 14,
     color: "#FFFFFF",
     fontFamily: "Poppins_600SemiBold",
     marginBottom: 4,
+  },
+
+  bottomBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    paddingHorizontal: 40,
+  },
+
+  bottomBarIcons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  bottomBarIcon: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#FFFFFF",
   },
 });
