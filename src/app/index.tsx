@@ -1,33 +1,96 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
+  Image,
   TouchableOpacity,
-  Dimensions,
-  Animated,
+  useWindowDimensions,
+  StatusBar,
 } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { useSharedValue, withRepeat, withTiming, Easing } from "react-native-reanimated";
+import * as SplashScreen from "expo-splash-screen";
+import {
+  useFonts,
+  Poppins_400Regular,
+  Poppins_600SemiBold,
+  Poppins_700Bold,
+} from "@expo-google-fonts/poppins";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  withDelay,
+  Easing,
+} from "react-native-reanimated";
 import { useRouter } from "expo-router";
-import { FONT, COLORS, SPACING, BORDER_RADIUS } from "../constants/theme";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+// Keep splash screen visible until fonts are loaded
+SplashScreen.preventAutoHideAsync();
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const { width: SCREEN_WIDTH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
 
-  // Reanimated shared value for floating animation
+  // Load Poppins fonts
+  const [fontsLoaded] = useFonts({
+    Poppins_400Regular,
+    Poppins_600SemiBold,
+    Poppins_700Bold,
+  });
+
+  // Hide splash screen once fonts are loaded
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded]);
+
+  // Floating animation: translateY -12 to 12, 2.5s loop, easing in-out
   const floatAnim = useSharedValue(0);
 
-  // Start animation when component mounts
-  React.useEffect(() => {
-    floatAnim.value = withRepeat(
-      withTiming(20, { duration: 2000, easing: Easing.out(Easing.cubic) }),
-      -1,
-    );
-  }, []);
+  useEffect(() => {
+    if (fontsLoaded) {
+      floatAnim.value = withRepeat(
+        withTiming(12, {
+          duration: 1250,
+          easing: Easing.inOut(Easing.ease),
+        }),
+        -1,
+        true
+      );
+    }
+  }, [fontsLoaded]);
+
+  const floatStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateY: floatAnim.value }],
+    };
+  });
+
+  // Fade-in animation for text and button
+  const fadeAnim = useSharedValue(0);
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      fadeAnim.value = withDelay(
+        300,
+        withTiming(1, {
+          duration: 800,
+          easing: Easing.out(Easing.cubic),
+        })
+      );
+    }
+  }, [fontsLoaded]);
+
+  const fadeStyle = useAnimatedStyle(() => {
+    return {
+      opacity: fadeAnim.value,
+    };
+  });
 
   // Button press animation
   const buttonScale = useSharedValue(1);
@@ -40,71 +103,71 @@ export default function WelcomeScreen() {
     buttonScale.value = withTiming(1, { duration: 100 });
   };
 
+  const buttonScaleStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: buttonScale.value }],
+    };
+  });
+
+  // Don't render until fonts are loaded
+  if (!fontsLoaded) {
+    return null;
+  }
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <StatusBar
+        barStyle="light-content"
+        translucent={true}
+        backgroundColor="transparent"
+      />
+
       {/* Full-screen gradient background */}
       <LinearGradient
-        colors={["#1B1840", "#6B3FA0", "#A97BE0"]}
+        colors={["#1B1840", "#3B2478", "#6B3FA0", "#A97BE0"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         style={styles.gradientBackground}
       >
-        {/* Floating weather animation in upper half */}
-        <View style={styles.weatherContainer}>
-          {/* Animated sun/cloud/rain element */}
-          <View
-            style={[
-              styles.weatherElement,
-              {
-                transform: [
-                  {
-                    translateY: floatAnim.value,
-                  },
-                ],
-              },
-            ]}
-          >
-            {/* Sun (gold circle) */}
-            <View style={styles.sun} />
-            {/* Cloud (white shape) */}
-            <View style={styles.cloud} />
-            {/* Rain drops */}
-            {Array.from({ length: 6 }, (_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.rainDrop,
-                  {
-                    left: `${15 + i * 12}%`,
-                    top: `${60 + (i % 3) * 10}%`,
-                  },
-                ]}
-              />
-            ))}
-          </View>
-
-          {/* "Weather" and "ForeCasts" text */}
-          <View style={styles.textContainer}>
-            <Text style={styles.weatherTitle}>Weather</Text>
-            <Text style={styles.forecastTitle}>ForeCasts</Text>
-          </View>
+        {/* Top section: hero image */}
+        <View style={styles.topSection}>
+          <Animated.View style={floatStyle}>
+            <Image
+              source={require("../../assets/images/weather-hero.png")}
+              style={{
+                width: SCREEN_WIDTH * 0.8,
+                aspectRatio: 1,
+              }}
+              resizeMode="contain"
+            />
+          </Animated.View>
         </View>
 
-        {/* Gold "Get Start" button at bottom */}
-        <TouchableOpacity
+        {/* Middle section: text */}
+        <Animated.View style={[styles.middleSection, fadeStyle]}>
+          <Text style={styles.weatherText}>Weather</Text>
+          <Text style={styles.forecastText}>ForeCasts</Text>
+        </Animated.View>
+
+        {/* Bottom section: button */}
+        <Animated.View
           style={[
-            styles.getStartedButton,
-            {
-              transform: [{ scale: buttonScale.value }],
-            },
+            styles.bottomSection,
+            fadeStyle,
+            buttonScaleStyle,
+            { marginBottom: 50 + insets.bottom },
           ]}
-          onPress={() => router.push("/home")}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          activeOpacity={0.8}
         >
-          <Text style={styles.buttonText}>Get Start</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.getStartedButton}
+            onPress={() => router.push("/home")}
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
+            activeOpacity={0.9}
+          >
+            <Text style={styles.buttonText}>Get Start</Text>
+          </TouchableOpacity>
+        </Animated.View>
       </LinearGradient>
     </SafeAreaView>
   );
@@ -118,97 +181,60 @@ const styles = StyleSheet.create({
 
   gradientBackground: {
     flex: 1,
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
+    width: "100%",
+    height: "100%",
   },
 
-  weatherContainer: {
-    position: "absolute",
-    top: SCREEN_HEIGHT * 0.12,
-    width: SCREEN_WIDTH * 0.85,
-    left: SCREEN_WIDTH * 0.075,
-    alignItems: "center",
-  },
-
-  weatherElement: {
-    width: SCREEN_WIDTH * 0.6,
-    height: SCREEN_WIDTH * 0.6,
-    borderRadius: BORDER_RADIUS.FULL,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    padding: SPACING.LG,
-    position: "relative",
-    alignItems: "center",
+  topSection: {
+    flex: 1.3,
     justifyContent: "center",
-  },
-
-  sun: {
-    width: SCREEN_WIDTH * 0.22,
-    height: SCREEN_WIDTH * 0.22,
-    borderRadius: BORDER_RADIUS.FULL,
-    backgroundColor: COLORS.GOLD,
-    position: "absolute",
-    top: -SCREEN_WIDTH * 0.05,
-    left: SCREEN_WIDTH * 0.19,
-  },
-
-  cloud: {
-    width: SCREEN_WIDTH * 0.35,
-    height: SCREEN_WIDTH * 0.18,
-    backgroundColor: "rgba(255,255,255,0.35)",
-    borderRadius: SCREEN_WIDTH * 0.09,
-    marginTop: SCREEN_WIDTH * 0.05,
-  },
-
-  rainDrop: {
-    position: "absolute",
-    width: 3,
-    height: 16,
-    backgroundColor: "rgba(255, 255, 255, 0.8)",
-    borderRadius: 2,
-    opacity: 0.9,
-  },
-
-  textContainer: {
-    marginTop: SPACING.XL,
     alignItems: "center",
   },
 
-  weatherTitle: {
-    fontFamily: FONT.BOLD,
-    fontSize: 40,
-    color: COLORS.WHITE,
-    textAlign: "center",
-    marginBottom: SPACING.XS,
+  middleSection: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 
-  forecastTitle: {
-    fontFamily: FONT.BOLD,
-    fontSize: 40,
-    color: COLORS.GOLD,
+  weatherText: {
+    fontFamily: "Poppins_700Bold",
+    fontSize: 44,
+    color: "#FFFFFF",
     textAlign: "center",
+    lineHeight: 52,
+  },
+
+  forecastText: {
+    fontFamily: "Poppins_700Bold",
+    fontSize: 44,
+    color: "#E6B325",
+    textAlign: "center",
+    lineHeight: 52,
+  },
+
+  bottomSection: {
+    alignItems: "center",
   },
 
   getStartedButton: {
-    position: "absolute",
-    bottom: SCREEN_HEIGHT * 0.12,
-    width: SCREEN_WIDTH * 0.6,
-    left: SCREEN_WIDTH * 0.2,
-    backgroundColor: COLORS.GOLD,
-    paddingVertical: SPACING.MD,
-    borderRadius: BORDER_RADIUS.FULL,
-    alignItems: "center",
+    width: "60%",
+    height: 56,
+    backgroundColor: "#E6B325",
+    borderRadius: 28,
     justifyContent: "center",
-    shadowColor: "#000",
+    alignItems: "center",
+    shadowColor: "#E6B325",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
 
   buttonText: {
-    fontFamily: FONT.SEMIBOLD,
+    fontFamily: "Poppins_600SemiBold",
     fontSize: 18,
-    color: COLORS.DEEP_NAVY,
-    textTransform: "uppercase",
+    color: "#1B1840",
+    textAlign: "center",
   },
 });
