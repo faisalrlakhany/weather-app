@@ -1,33 +1,33 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import * as NavigationBar from "expo-navigation-bar";
+import { useRouter } from "expo-router";
+import { StatusBar as ExpoStatusBar } from "expo-status-bar";
+import React, { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
+  Image,
+  StatusBar,
   StyleSheet,
   Text,
-  View,
   TouchableOpacity,
-  ActivityIndicator,
   useWindowDimensions,
-  StatusBar,
-  Image,
+  View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
-import { useRouter } from "expo-router";
 import Animated, {
-  useSharedValue,
+  Easing,
   useAnimatedStyle,
+  useSharedValue,
+  withDelay,
   withRepeat,
   withTiming,
-  withDelay,
-  Easing,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  searchCity,
-  getWeather,
   getAirQuality,
-  mapWeatherCode,
-  type WeatherData,
-  type CityResult,
+  getWeather,
+  searchCity,
+  type WeatherData
 } from "../../services/weatherService";
 
 // Default city
@@ -95,30 +95,25 @@ export default function HomeScreen() {
     fetchData();
   }, [fetchData]);
 
+  // Android navigation bar: match the gradient bottom color, no white strip
+  useEffect(() => {
+    if (NavigationBar && typeof NavigationBar.setBackgroundColorAsync === "function") {
+      NavigationBar.setBackgroundColorAsync("#7A44B8");
+      NavigationBar.setButtonStyleAsync("light");
+    }
+  }, []);
+
   // Floating animation for hero weather image
   const floatAnim = useSharedValue(0);
   useEffect(() => {
     floatAnim.value = withRepeat(
-      withTiming(-12, { duration: 1250, easing: Easing.inOut(Easing.ease) }),
+      withTiming(-5, { duration: 1250, easing: Easing.inOut(Easing.ease) }),
       -1,
       true
     );
   }, []);
   const floatStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: floatAnim.value }],
-  }));
-
-  // Fade-in + slide-up for cards on mount
-  const cardAnim = useSharedValue(0);
-  useEffect(() => {
-    cardAnim.value = withDelay(
-      200,
-      withTiming(1, { duration: 700, easing: Easing.out(Easing.cubic) })
-    );
-  }, []);
-  const cardStyle = useAnimatedStyle(() => ({
-    opacity: cardAnim.value,
-    transform: [{ translateY: (1 - cardAnim.value) * 30 }],
   }));
 
   // Subtle fade-in for the house illustration
@@ -208,126 +203,98 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+      <ExpoStatusBar style="light" translucent backgroundColor="transparent" />
       <LinearGradient
-        colors={["#1B1840", "#3B2478", "#6B3FA0", "#A97BE0"]}
+        colors={["#1B1840", "#2E2068", "#5A33A8", "#8E55C8"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
-        style={styles.gradient}
+        style={StyleSheet.absoluteFill}
       >
-        <View
-          style={[
-            styles.content,
-            { paddingTop: insets.top + 8 },
-          ]}
-        >
-          {/* Header */}
-          <View style={styles.headerSection}>
-            <Text style={styles.locationText}>
-              {cityName}
-            </Text>
-          </View>
-
-          {/* Hero */}
+        <View style={{ flex: 1, paddingTop: insets.top + 16 }}>
+          {/* Hero: icon + temperature + condition + Max/Min */}
           <View style={styles.heroSection}>
-            <Animated.View style={[floatStyle, { marginTop: 16 }]}>
-              <Image
-                source={currentImage}
-                style={{
-                  width: SCREEN_WIDTH * 0.42,
-                  height: SCREEN_WIDTH * 0.42,
-                  aspectRatio: 1,
-                }}
-                resizeMode="contain"
-              />
-            </Animated.View>
-            <Text style={styles.temperature}>{Math.round(current.temperature)}°</Text>
-            <Text style={styles.conditionLabel}>{conditionLabel}</Text>
-            <Text style={styles.maxMinDetail}>{maxMinStr}</Text>
-          </View>
+          <Animated.View style={[floatStyle, { marginBottom: -10 }]}>
+            <Image
+              source={currentImage}
+              style={{ width: SCREEN_WIDTH * 0.44, height: SCREEN_WIDTH * 0.44 }}
+              resizeMode="contain"
+            />
+          </Animated.View>
+          <Text style={styles.temperature}>{Math.round(current.temperature)}°</Text>
+          <Text style={styles.conditionLabel}>{conditionLabel}</Text>
+          <Text style={styles.maxMinDetail}>{maxMinStr}</Text>
+        </View>
 
-          {/* House illustration */}
-          <View style={styles.houseSection}>
-            <Animated.View style={houseStyle}>
-              <Image
-                source={HOUSE_IMAGE}
-                style={{
-                  width: "90%",
-                  aspectRatio: 1.15,
-                  alignSelf: "center",
-                  marginBottom: -20,
-                  zIndex: 2,
-                }}
-                resizeMode="contain"
-              />
-            </Animated.View>
-          </View>
-
-          {/* Today card */}
-          <Animated.View style={[styles.todayCardWrap, cardStyle, { marginBottom: 70 + insets.bottom }]}>
-            <LinearGradient
-              colors={["#3A2A8C", "#4B2F9E", "#6A3FB0"]}
-              start={{ x: 0.5, y: 0 }}
-              end={{ x: 0.5, y: 1 }}
-              style={styles.glassCard}
-            >
-              <View style={styles.glassCardContent}>
-                <View style={styles.todayHeader}>
-                  <Text style={styles.todayTitle}>Today</Text>
-                  <Text style={styles.todayDate}>{formattedDate}</Text>
-                </View>
-
-                <View style={styles.hourlyList}>
-                  {(() => {
-                    const nowHour = new Date().getHours();
-                    let startIdx = hourly.findIndex(
-                      (h) => new Date(h.time).getHours() >= nowHour
-                    );
-                    if (startIdx < 0) startIdx = 0;
-                    return hourly.slice(startIdx, startIdx + 4);
-                  })().map((hour, index) => {
-                    const d = new Date(hour.time);
-                    const hh = String(d.getHours()).padStart(2, "0");
-                    const mm = String(d.getMinutes()).padStart(2, "0");
-                    const hourTime = `${hh}.${mm}`;
-                    const night = isNightHour(hour.time);
-                    const hourIconName = getWeatherImageKey(current.iconName, !night);
-                    const hourImage =
-                      WEATHER_IMAGES[hourIconName] || WEATHER_IMAGES.cloudy;
-                    return (
-                      <React.Fragment key={index}>
-                        <View style={styles.hourlyItem}>
-                          <Text style={styles.hourlyTemp}>{Math.round(hour.temperature)}°C</Text>
-                          <Image
-                            source={hourImage}
-                            style={{ width: 40, height: 40, marginVertical: 8 }}
-                            resizeMode="contain"
-                          />
-                          <Text style={styles.hourlyTime}>{hourTime}</Text>
-                        </View>
-                        {index < 3 && <View style={styles.divider} />}
-                      </React.Fragment>
-                    );
-                  })}
-                </View>
-              </View>
-            </LinearGradient>
+        {/* House illustration, sitting on the panel */}
+        <View style={styles.houseSection}>
+          <Animated.View style={[{ width: "100%", height: "100%", marginBottom: -8, zIndex: 2 }, houseStyle]}>
+            <Image
+              source={HOUSE_IMAGE}
+              style={{ width: "100%", height: "100%" }}
+              resizeMode="contain"
+            />
           </Animated.View>
         </View>
 
-        {/* Bottom bar */}
-        <LinearGradient
-          colors={["#5A33A8", "#7A44B8"]}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={[styles.bottomBar, { height: 70 + insets.bottom }]}
+        {/* Bottom panel: same gradient with a subtle glass layer */}
+        <View
+          style={[
+            styles.panel,
+            { zIndex: 1, paddingBottom: insets.bottom },
+          ]}
         >
-          <View style={styles.bottomBarIcons}>
-            <View style={styles.bottomBarIcon} />
-            <View style={styles.bottomBarIcon} />
-            <View style={styles.bottomBarIcon} />
+          <View style={styles.todayHeader}>
+            <Text style={styles.todayTitle}>Today</Text>
+            <Text style={styles.todayDate}>{formattedDate}</Text>
           </View>
-        </LinearGradient>
+
+          <View style={styles.hourlyList}>
+            {(() => {
+              const nowHour = new Date().getHours();
+              let startIdx = hourly.findIndex(
+                (h) => new Date(h.time).getHours() >= nowHour
+              );
+              if (startIdx < 0) startIdx = 0;
+              return hourly.slice(startIdx, startIdx + 4);
+            })().map((hour, index) => {
+              const d = new Date(hour.time);
+              const hh = String(d.getHours()).padStart(2, "0");
+              const mm = String(d.getMinutes()).padStart(2, "0");
+              const hourTime = `${hh}.${mm}`;
+              const night = isNightHour(hour.time);
+              const hourIconName = getWeatherImageKey(current.iconName, !night);
+              const hourImage =
+                WEATHER_IMAGES[hourIconName] || WEATHER_IMAGES.cloudy;
+              return (
+                <React.Fragment key={index}>
+                  <View style={styles.hourlyItem}>
+                    <Text style={styles.hourlyTemp}>{Math.round(hour.temperature)}°C</Text>
+                    <Image
+                      source={hourImage}
+                      style={{ width: 36, height: 36, marginVertical: 6 }}
+                      resizeMode="contain"
+                    />
+                    <Text style={styles.hourlyTime}>{hourTime}</Text>
+                  </View>
+                  {index < 3 && <View style={styles.divider} />}
+                </React.Fragment>
+              );
+            })}
+          </View>
+
+          <View style={styles.bottomBarRow}>
+            <TouchableOpacity onPress={fetchData}>
+              <Ionicons name="location-outline" size={26} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity>
+              <Ionicons name="add-circle-outline" size={32} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity>
+              <Ionicons name="menu-outline" size={28} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        </View>
+        </View>
       </LinearGradient>
     </View>
   );
@@ -343,10 +310,6 @@ const styles = StyleSheet.create({
     flex: 1,
     width: "100%",
     height: "100%",
-  },
-
-  content: {
-    flex: 1,
   },
 
   loadingContainer: {
@@ -395,41 +358,32 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_600SemiBold",
   },
 
-  headerSection: {
-    alignItems: "center",
-  },
-
-  locationText: {
-    fontSize: 18,
-    color: "#FFFFFF",
-    fontFamily: "Poppins_600SemiBold",
-    textAlign: "center",
-  },
-
   heroSection: {
-    flex: 1.2,
     alignItems: "center",
-    justifyContent: "center",
+    marginTop: 8,
   },
 
   temperature: {
-    fontSize: 60,
+    fontSize: 56,
+    lineHeight: 64,
     color: "#FFFFFF",
     fontFamily: "Poppins_700Bold",
     textAlign: "center",
-    marginTop: -6,
+    marginTop: -12,
+    includeFontPadding: false,
   },
 
   conditionLabel: {
     fontSize: 16,
+    lineHeight: 22,
     color: "#FFFFFF",
     fontFamily: "Poppins_600SemiBold",
     textAlign: "center",
-    marginTop: 0,
   },
 
   maxMinDetail: {
     fontSize: 14,
+    lineHeight: 20,
     color: "rgba(255,255,255,0.85)",
     fontFamily: "Poppins_400Regular",
     textAlign: "center",
@@ -437,31 +391,20 @@ const styles = StyleSheet.create({
   },
 
   houseSection: {
-    flex: 1.6,
-    justifyContent: "flex-end",
+    flex: 1,
     alignItems: "center",
-    overflow: "visible",
+    justifyContent: "flex-end",
+    paddingHorizontal: 10,
+    marginVertical: 0,
   },
 
-  todayCardWrap: {
-    marginHorizontal: 0,
-    zIndex: 1,
-  },
-
-  glassCard: {
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
+  panel: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    overflow: "hidden",
     borderTopWidth: 1,
     borderColor: "rgba(255,255,255,0.18)",
-    overflow: "hidden",
-  },
-
-  glassCardContent: {
-    padding: 0,
-    backgroundColor: "transparent",
-    borderWidth: 0,
   },
 
   todayHeader: {
@@ -469,12 +412,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 24,
-    paddingTop: 18,
-    paddingBottom: 8,
+    paddingTop: 16,
+    paddingBottom: 6,
   },
 
   todayTitle: {
-    fontSize: 18,
+    fontSize: 16,
     color: "#FFFFFF",
     fontFamily: "Poppins_600SemiBold",
   },
@@ -489,56 +432,39 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
-    backgroundColor: "rgba(20,10,60,0.30)",
-    paddingVertical: 16,
-    borderWidth: 0,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
 
   hourlyItem: {
-    alignItems: "center",
     flex: 1,
+    alignItems: "center",
   },
 
   divider: {
     width: 1,
-    height: 50,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    marginHorizontal: 4,
-  },
-
-  hourlyTime: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.65)",
-    fontFamily: "Poppins_400Regular",
-    marginTop: 4,
+    height: 56,
+    backgroundColor: "rgba(255,255,255,0.2)",
   },
 
   hourlyTemp: {
     fontSize: 14,
     color: "#FFFFFF",
     fontFamily: "Poppins_600SemiBold",
-    marginBottom: 4,
   },
 
-  bottomBar: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: "center",
-    paddingHorizontal: 40,
+  hourlyTime: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.7)",
+    fontFamily: "Poppins_400Regular",
   },
 
-  bottomBarIcons: {
+  bottomBarRow: {
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.12)",
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "space-around",
     alignItems: "center",
-  },
-
-  bottomBarIcon: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#FFFFFF",
+    paddingTop: 12,
   },
 });

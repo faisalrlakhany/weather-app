@@ -6,7 +6,11 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "weatherapp",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
+    "androidNavigationBar": {
+      "backgroundColor": "#7A44B8",
+      "barStyle": "light-content"
+    },
     "ios": {
       "icon": "./assets/expo.icon"
     },
