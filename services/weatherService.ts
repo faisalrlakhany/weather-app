@@ -16,12 +16,16 @@ export interface CurrentWeather {
   weatherLabel: string;
   iconName: string;
   isDay: boolean;
-  precipitation: number;
+  time: string;
 }
 
 export interface HourlyForecast {
   time: string;
   temperature: number;
+  weatherCode: number;
+  isDay: boolean;
+  iconName: string;
+  weatherLabel: string;
 }
 
 export interface DailyForecast {
@@ -172,6 +176,7 @@ interface WeatherApiResponse {
     weather_code: number;
     is_day: number;
     precipitation: number;
+    time: string;
   };
   daily: {
     time: string[];
@@ -185,6 +190,8 @@ interface WeatherApiResponse {
   hourly: {
     time: string[];
     temperature_2m: number[];
+    weather_code: number[];
+    is_day: number[];
   };
 }
 
@@ -193,10 +200,10 @@ export async function getWeather(lat: number, lon: number): Promise<WeatherData>
     const params = new URLSearchParams({
       latitude: lat.toString(),
       longitude: lon.toString(),
-      current: "temperature_2m,weather_code,is_day,precipitation",
-      hourly: "temperature_2m",
+      current: "temperature_2m,weather_code,is_day",
+      hourly: "temperature_2m,weather_code,is_day",
       daily:
-        "temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,uv_index_max",
+        "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max",
       timezone: "auto",
       forecast_days: "7",
     });
@@ -206,20 +213,31 @@ export async function getWeather(lat: number, lon: number): Promise<WeatherData>
 
     const isDay = data.current.is_day === 1;
     const currentInfo = mapWeatherCode(data.current.weather_code, isDay);
+    const currentTime: string = data.current.time;
 
-    // Build hourly forecast for today only
-    const today = new Date().toISOString().split("T")[0];
+    const current: CurrentWeather = {
+      temperature: data.current.temperature_2m,
+      weatherCode: data.current.weather_code,
+      weatherLabel: currentInfo.label,
+      iconName: currentInfo.iconName,
+      isDay,
+      time: currentTime,
+    };
+
     const hourly: HourlyForecast[] = [];
     for (let i = 0; i < data.hourly.time.length; i++) {
-      if (data.hourly.time[i].startsWith(today)) {
-        hourly.push({
-          time: data.hourly.time[i],
-          temperature: data.hourly.temperature_2m[i],
-        });
-      }
+      const hourIsDay = data.hourly.is_day[i] === 1;
+      const hourInfo = mapWeatherCode(data.hourly.weather_code[i], hourIsDay);
+      hourly.push({
+        time: data.hourly.time[i],
+        temperature: data.hourly.temperature_2m[i],
+        weatherCode: data.hourly.weather_code[i],
+        isDay: hourIsDay,
+        iconName: hourInfo.iconName,
+        weatherLabel: hourInfo.label,
+      });
     }
 
-    // Build 7-day daily forecast
     const daily: DailyForecast[] = data.daily.time.map((date, i) => {
       const code = data.daily.weather_code[i];
       const info = mapWeatherCode(code, true);
@@ -235,15 +253,6 @@ export async function getWeather(lat: number, lon: number): Promise<WeatherData>
         uvIndex: data.daily.uv_index_max[i],
       };
     });
-
-    const current: CurrentWeather = {
-      temperature: data.current.temperature_2m,
-      weatherCode: data.current.weather_code,
-      weatherLabel: currentInfo.label,
-      iconName: currentInfo.iconName,
-      isDay,
-      precipitation: data.current.precipitation,
-    };
 
     return {
       current,
@@ -279,6 +288,7 @@ export async function getAirQuality(lat: number, lon: number): Promise<AirQualit
       latitude: lat.toString(),
       longitude: lon.toString(),
       current: "us_aqi",
+      timezone: "auto",
     });
 
     const url = `${AIR_QUALITY_BASE}/air-quality?${params.toString()}`;

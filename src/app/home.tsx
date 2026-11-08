@@ -97,10 +97,7 @@ export default function HomeScreen() {
 
   // Android navigation bar: match the gradient bottom color, no white strip
   useEffect(() => {
-    if (NavigationBar && typeof NavigationBar.setBackgroundColorAsync === "function") {
-      NavigationBar.setBackgroundColorAsync("#7A44B8");
-      NavigationBar.setButtonStyleAsync("light");
-    }
+    NavigationBar.setStyle("light");
   }, []);
 
   // Floating animation for hero weather image
@@ -183,27 +180,18 @@ export default function HomeScreen() {
 
   const maxMinStr = `Max: ${Math.round(todayMax)}°  Min: ${Math.round(todayMin)}°`;
 
-  const formattedDate = `${new Date().toLocaleDateString("en-US", { month: "short" })}, ${new Date().getDate()}`;
+  const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const currentDateParts = current.time ? current.time.split("T")[0].split("-") : [];
+  const currentMonthIndex = currentDateParts.length > 1 ? parseInt(currentDateParts[1], 10) : 0;
+  const currentDay = currentDateParts.length > 2 ? parseInt(currentDateParts[2], 10) : new Date().getDate();
+  const formattedDate = `${MONTH_NAMES[currentMonthIndex - 1]}, ${currentDay}`;
 
   const sunrise = weatherData.sunrise;
   const sunset = weatherData.sunset;
 
-  const isNightHour = (timeStr: string): boolean => {
-    const d = new Date(timeStr);
-    const mins = d.getHours() * 60 + d.getMinutes();
-    const sr = sunrise ? new Date(sunrise) : null;
-    const ss = sunset ? new Date(sunset) : null;
-    if (sr && ss) {
-      const srMins = sr.getHours() * 60 + sr.getMinutes();
-      const ssMins = ss.getHours() * 60 + ss.getMinutes();
-      return mins < srMins || mins > ssMins;
-    }
-    return d.getHours() < 6 || d.getHours() >= 19;
-  };
-
   return (
     <View style={styles.container}>
-      <ExpoStatusBar style="light" translucent backgroundColor="transparent" />
+      <ExpoStatusBar style="light" />
       <LinearGradient
         colors={["#1B1840", "#2E2068", "#5A33A8", "#8E55C8"]}
         start={{ x: 0, y: 0 }}
@@ -250,19 +238,22 @@ export default function HomeScreen() {
 
           <View style={styles.hourlyList}>
             {(() => {
-              const nowHour = new Date().getHours();
-              let startIdx = hourly.findIndex(
-                (h) => new Date(h.time).getHours() >= nowHour
-              );
+              const currentHourStart = current.time
+                ? `${current.time.slice(0, 13)}:00`
+                : "";
+              let startIdx = hourly.findIndex((h) => h.time >= currentHourStart);
               if (startIdx < 0) startIdx = 0;
-              return hourly.slice(startIdx, startIdx + 4);
+              const nextFourHours = hourly.slice(startIdx, startIdx + 4);
+              console.log(
+                "Next 4 hourly temperatures:",
+                nextFourHours.map((h) => h.temperature)
+              );
+              return nextFourHours;
             })().map((hour, index) => {
-              const d = new Date(hour.time);
-              const hh = String(d.getHours()).padStart(2, "0");
-              const mm = String(d.getMinutes()).padStart(2, "0");
+              const hh = hour.time.slice(11, 13);
+              const mm = hour.time.slice(14, 16);
               const hourTime = `${hh}.${mm}`;
-              const night = isNightHour(hour.time);
-              const hourIconName = getWeatherImageKey(current.iconName, !night);
+              const hourIconName = getWeatherImageKey(hour.iconName, hour.isDay);
               const hourImage =
                 WEATHER_IMAGES[hourIconName] || WEATHER_IMAGES.cloudy;
               return (
