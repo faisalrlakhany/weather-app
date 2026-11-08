@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
 import * as NavigationBar from "expo-navigation-bar";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -59,6 +59,18 @@ export default function HomeScreen() {
   const router = useRouter();
   const { width: SCREEN_WIDTH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{
+    lat?: string;
+    lon?: string;
+    city?: string;
+    country?: string;
+  }>();
+  const paramLat =
+    params.lat != null && params.lat !== "" ? parseFloat(String(params.lat)) : undefined;
+  const paramLon =
+    params.lon != null && params.lon !== "" ? parseFloat(String(params.lon)) : undefined;
+  const paramCity = params.city ? String(params.city) : undefined;
+  const paramCountry = params.country ? String(params.country) : undefined;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +86,22 @@ export default function HomeScreen() {
     setError(null);
 
     try {
+      if (paramLat != null && !Number.isNaN(paramLat) && paramLon != null && !Number.isNaN(paramLon)) {
+        // Coordinates passed from the Search screen
+        setCityName(paramCity || "Current location");
+        setCountry(paramCountry || "");
+        setLat(paramLat);
+        setLon(paramLon);
+
+        const [weather, airQuality] = await Promise.all([
+          getWeather(paramLat, paramLon),
+          getAirQuality(paramLat, paramLon),
+        ]);
+
+        setWeatherData(weather);
+        return;
+      }
+
       const cities = await searchCity(DEFAULT_CITY);
       if (cities.length === 0) {
         throw new Error("City not found");
@@ -96,7 +124,7 @@ export default function HomeScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [paramLat, paramLon, paramCity, paramCountry]);
 
   // Android navigation bar: match the gradient bottom color, no white strip
   useEffect(() => {
@@ -156,9 +184,19 @@ export default function HomeScreen() {
     await fetchData();
   }, [fetchData]);
 
+  // On fresh app open (no params): request GPS and fetch device weather
   useEffect(() => {
-    fetchInitialLocation();
-  }, [fetchInitialLocation]);
+    if (paramLat == null || paramLon == null) {
+      fetchInitialLocation();
+    }
+  }, [fetchInitialLocation, paramLat, paramLon]);
+
+  // When param coordinates change (e.g. a city was picked in Search), refetch
+  useEffect(() => {
+    if (paramLat != null && paramLon != null) {
+      fetchData();
+    }
+  }, [fetchData, paramLat, paramLon]);
 
   const handleCurrentLocation = useCallback(async () => {
     setLocating(true);
@@ -389,7 +427,7 @@ export default function HomeScreen() {
             >
               <Ionicons name="location-outline" size={26} color="#FFFFFF" />
             </TouchableOpacity>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push("/search")}>
               <Ionicons name="add-circle-outline" size={32} color="#FFFFFF" />
             </TouchableOpacity>
             <TouchableOpacity
