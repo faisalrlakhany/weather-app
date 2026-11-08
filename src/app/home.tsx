@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
@@ -9,11 +8,20 @@ import {
   ActivityIndicator,
   useWindowDimensions,
   StatusBar,
+  Image,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
-import { FONT, COLORS, SPACING, BORDER_RADIUS, GLASS_STYLES } from "../constants/theme";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  withDelay,
+  Easing,
+} from "react-native-reanimated";
 import {
   searchCity,
   getWeather,
@@ -26,31 +34,30 @@ import {
 // Default city
 const DEFAULT_CITY = "London";
 
-// Weather icon emoji mapping
-const WEATHER_EMOJI: Record<string, string> = {
-  sunny: "☀️",
-  "partly-cloudy": "⛅",
-  cloudy: "☁️",
-  rain: "🌧️",
-  thunderstorm: "⛈️",
-  snow: "🌨️",
-  fog: "🌫️",
+// Map weather icon name (from mapWeatherCode) to the 3D PNG assets
+const WEATHER_IMAGES: Record<string, any> = {
+  sunny: require("../../assets/images/sunny.png"),
+  "partly-cloudy": require("../../assets/images/partly-cloudy.png"),
+  cloudy: require("../../assets/images/cloudy.png"),
+  rain: require("../../assets/images/rain.png"),
+  thunderstorm: require("../../assets/images/thunder.png"),
+  thunder: require("../../assets/images/thunder.png"),
+  snow: require("../../assets/images/snow.png"),
+  fog: require("../../assets/images/fog.png"),
+  night: require("../../assets/images/night.png"),
 };
 
-// Small icon for hourly forecast
-const HOURLY_EMOJI: Record<string, string> = {
-  sunny: "☀️",
-  "partly-cloudy": "⛅",
-  cloudy: "☁️",
-  rain: "🌧️",
-  thunderstorm: "⛈️",
-  snow: "🌨️",
-  fog: "🌫️",
-};
+const HOUSE_IMAGE = require("../../assets/images/house.png");
+
+function getWeatherImageKey(iconName: string, isDay: boolean = true): string {
+  if (!isDay && iconName === "sunny") return "night";
+  return iconName;
+}
 
 export default function HomeScreen() {
   const router = useRouter();
   const { width: SCREEN_WIDTH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +70,6 @@ export default function HomeScreen() {
     setError(null);
 
     try {
-      // Search for default city
       const cities = await searchCity(DEFAULT_CITY);
       if (cities.length === 0) {
         throw new Error("City not found");
@@ -73,7 +79,6 @@ export default function HomeScreen() {
       setCityName(city.name);
       setCountry(city.country);
 
-      // Fetch weather and air quality in parallel
       const [weather, airQuality] = await Promise.all([
         getWeather(city.latitude, city.longitude),
         getAirQuality(city.latitude, city.longitude),
@@ -91,11 +96,37 @@ export default function HomeScreen() {
     fetchData();
   }, [fetchData]);
 
+  // Floating animation for hero weather image
+  const floatAnim = useSharedValue(0);
+  useEffect(() => {
+    floatAnim.value = withRepeat(
+      withTiming(-12, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+  }, []);
+  const floatStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: floatAnim.value }],
+  }));
+
+  // Fade-in + slide-up for cards on mount
+  const cardAnim = useSharedValue(0);
+  useEffect(() => {
+    cardAnim.value = withDelay(
+      200,
+      withTiming(1, { duration: 700, easing: Easing.out(Easing.cubic) })
+    );
+  }, []);
+  const cardStyle = useAnimatedStyle(() => ({
+    opacity: cardAnim.value,
+    transform: [{ translateY: (1 - cardAnim.value) * 30 }],
+  }));
+
   // Loading skeleton
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" />
         <LinearGradient
           colors={["#1B1840", "#3B2478", "#6B3FA0", "#A97BE0"]}
           start={{ x: 0, y: 0 }}
@@ -107,15 +138,15 @@ export default function HomeScreen() {
             <Text style={styles.loadingText}>Loading weather...</Text>
           </View>
         </LinearGradient>
-      </SafeAreaView>
+      </View>
     );
   }
 
   // Error state
   if (error || !weatherData) {
     return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" />
         <LinearGradient
           colors={["#1B1840", "#3B2478", "#6B3FA0", "#A97BE0"]}
           start={{ x: 0, y: 0 }}
@@ -130,21 +161,43 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         </LinearGradient>
-      </SafeAreaView>
+      </View>
     );
   }
 
-  const { current, todayMax, todayMin, hourly, daily } = weatherData;
-  const currentIcon = WEATHER_EMOJI[current.iconName] || "🌤️";
-  const dateStr = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+  const { current, todayMax, todayMin, hourly } = weatherData;
+  const currentImageKey = getWeatherImageKey(current.iconName, current.isDay);
+  const currentImage = WEATHER_IMAGES[currentImageKey] || WEATHER_IMAGES.cloudy;
+
+  // Condition label: show "Precipitations" for precipitation-bearing conditions
+  const conditionLabel =
+    current.iconName === "rain" || current.iconName === "thunderstorm"
+      ? "Precipitations"
+      : current.weatherLabel;
+
+  const maxMinStr = `Max: ${Math.round(todayMax)}° Min: ${Math.round(todayMin)}°`;
+
+  const formattedDate = `${new Date().toLocaleDateString("en-US", { month: "short" })}, ${new Date().getDate()}`;
+
+  const sunrise = weatherData.sunrise;
+  const sunset = weatherData.sunset;
+
+  const isNightHour = (timeStr: string): boolean => {
+    const d = new Date(timeStr);
+    const mins = d.getHours() * 60 + d.getMinutes();
+    const sr = sunrise ? new Date(sunrise) : null;
+    const ss = sunset ? new Date(sunset) : null;
+    if (sr && ss) {
+      const srMins = sr.getHours() * 60 + sr.getMinutes();
+      const ssMins = ss.getHours() * 60 + ss.getMinutes();
+      return mins < srMins || mins > ssMins;
+    }
+    return d.getHours() < 6 || d.getHours() >= 19;
+  };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
       <LinearGradient
         colors={["#1B1840", "#3B2478", "#6B3FA0", "#A97BE0"]}
         start={{ x: 0, y: 0 }}
@@ -152,62 +205,96 @@ export default function HomeScreen() {
         style={styles.gradient}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: insets.top + 12, paddingBottom: 100 },
+          ]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Top: Location name and max/min */}
-          <View style={styles.topSection}>
+          {/* Header */}
+          <View style={styles.headerSection}>
             <Text style={styles.locationText}>
               {cityName}, {country}
             </Text>
-            <Text style={styles.maxMinText}>
-              Max: {Math.round(todayMax)}° Min: {Math.round(todayMin)}°
-            </Text>
+            <Text style={styles.maxMinText}>{maxMinStr}</Text>
           </View>
 
-          {/* Center: Weather icon, temperature, precipitations */}
-          <View style={styles.centerSection}>
-            <Text style={styles.weatherIcon}>{currentIcon}</Text>
+          {/* Hero */}
+          <View style={styles.heroSection}>
+            <Animated.View style={floatStyle}>
+              <Image
+                source={currentImage}
+                style={{
+                  width: SCREEN_WIDTH * 0.55,
+                  height: SCREEN_WIDTH * 0.55,
+                }}
+                resizeMode="contain"
+              />
+            </Animated.View>
             <Text style={styles.temperature}>{Math.round(current.temperature)}°</Text>
-            <Text style={styles.precipitationsLabel}>Precipitations</Text>
-            <Text style={styles.maxMinDetail}>
-              Max: {Math.round(todayMax)}° Min: {Math.round(todayMin)}°
-            </Text>
+            <Text style={styles.conditionLabel}>{conditionLabel}</Text>
           </View>
 
-          {/* Bottom: Glass card "Today" with hourly forecast */}
-          <BlurView intensity={40} tint="light" style={styles.glassCard}>
-            <View style={styles.glassCardContent}>
-              <View style={styles.todayHeader}>
-                <Text style={styles.todayTitle}>Today</Text>
-                <Text style={styles.todayDate}>{dateStr}</Text>
-              </View>
+          {/* House illustration */}
+          <Image
+            source={HOUSE_IMAGE}
+            style={{
+              width: SCREEN_WIDTH * 0.6,
+              height: SCREEN_WIDTH * 0.6 * 0.6,
+              alignSelf: "center",
+              marginBottom: -30,
+            }}
+            resizeMode="contain"
+          />
 
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.hourlyList}
-              >
-                {hourly.map((hour, index) => {
-                  const hourTime = new Date(hour.time).toLocaleTimeString("en-US", {
-                    hour: "numeric",
-                    hour12: true,
-                  });
-                  const hourIcon = HOURLY_EMOJI[current.iconName] || "🌤️";
-                  return (
-                    <View key={index} style={styles.hourlyItem}>
-                      <Text style={styles.hourlyTime}>{hourTime}</Text>
-                      <Text style={styles.hourlyIcon}>{hourIcon}</Text>
-                      <Text style={styles.hourlyTemp}>{Math.round(hour.temperature)}°</Text>
-                    </View>
-                  );
-                })}
-              </ScrollView>
+          {/* Today glass card */}
+          <Animated.View style={cardStyle}>
+            <View style={styles.glassCard}>
+              <BlurView intensity={25} tint="light" style={StyleSheet.absoluteFill} />
+              <View style={styles.glassCardContent}>
+                <View style={styles.todayHeader}>
+                  <Text style={styles.todayTitle}>Today</Text>
+                  <Text style={styles.todayDate}>{formattedDate}</Text>
+                </View>
+
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.hourlyList}
+                >
+                  {hourly.map((hour, index) => {
+                    const hourTime = new Date(hour.time).toLocaleTimeString("en-US", {
+                      hour: "numeric",
+                      hour12: true,
+                    });
+                    const night = isNightHour(hour.time);
+                    const hourIconName = getWeatherImageKey(current.iconName, !night);
+                    const hourImage =
+                      WEATHER_IMAGES[hourIconName] || WEATHER_IMAGES.cloudy;
+                    return (
+                      <React.Fragment key={index}>
+                        <View style={styles.hourlyItem}>
+                          <Text style={styles.hourlyTemp}>{Math.round(hour.temperature)}°</Text>
+                          <Image
+                            source={hourImage}
+                            style={{ width: 40, height: 40, marginVertical: 8 }}
+                            resizeMode="contain"
+                          />
+                          <Text style={styles.hourlyTime}>{hourTime}</Text>
+                        </View>
+                        {index < hourly.length - 1 && (
+                          <View style={styles.divider} />
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </ScrollView>
+              </View>
             </View>
-          </BlurView>
+          </Animated.View>
         </ScrollView>
       </LinearGradient>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -226,11 +313,8 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 30,
   },
 
-  // Loading
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -244,7 +328,6 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_400Regular",
   },
 
-  // Error
   errorContainer: {
     flex: 1,
     justifyContent: "center",
@@ -278,37 +361,29 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_600SemiBold",
   },
 
-  // Top section
-  topSection: {
+  headerSection: {
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 12,
   },
 
   locationText: {
-    fontSize: 24,
+    fontSize: 20,
     color: "#FFFFFF",
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "Poppins_600SemiBold",
     textAlign: "center",
   },
 
   maxMinText: {
     fontSize: 14,
-    color: "rgba(255,255,255,0.65)",
+    color: "rgba(255,255,255,0.7)",
     fontFamily: "Poppins_400Regular",
     textAlign: "center",
     marginTop: 4,
   },
 
-  // Center section
-  centerSection: {
+  heroSection: {
     alignItems: "center",
     justifyContent: "center",
-    flex: 1,
-    marginBottom: 20,
-  },
-
-  weatherIcon: {
-    fontSize: 100,
     marginBottom: 8,
   },
 
@@ -317,31 +392,36 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontFamily: "Poppins_700Bold",
     textAlign: "center",
+    marginTop: 4,
   },
 
-  precipitationsLabel: {
+  conditionLabel: {
     fontSize: 16,
     color: "rgba(255,255,255,0.65)",
     fontFamily: "Poppins_400Regular",
     textAlign: "center",
-    marginTop: 8,
+    marginTop: 4,
   },
 
   maxMinDetail: {
-    fontSize: 16,
-    color: "rgba(255,255,255,0.85)",
-    fontFamily: "Poppins_600SemiBold",
+    fontSize: 14,
+    color: "rgba(255,255,255,0.7)",
+    fontFamily: "Poppins_400Regular",
     textAlign: "center",
     marginTop: 4,
   },
 
-  // Glass card
   glassCard: {
-    borderRadius: 20,
+    borderRadius: 28,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-    backgroundColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.25)",
+    backgroundColor: "rgba(255,255,255,0.14)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
   },
 
   glassCardContent: {
@@ -356,42 +436,46 @@ const styles = StyleSheet.create({
   },
 
   todayTitle: {
-    fontSize: 20,
+    fontSize: 18,
     color: "#FFFFFF",
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "Poppins_600SemiBold",
   },
 
   todayDate: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.65)",
+    fontSize: 14,
+    color: "rgba(255,255,255,0.7)",
     fontFamily: "Poppins_400Regular",
   },
 
   hourlyList: {
     flexDirection: "row",
-    gap: 16,
+    alignItems: "center",
   },
 
   hourlyItem: {
     alignItems: "center",
     minWidth: 60,
+    paddingHorizontal: 8,
+  },
+
+  divider: {
+    width: 1,
+    height: 50,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    marginHorizontal: 4,
   },
 
   hourlyTime: {
     fontSize: 12,
     color: "rgba(255,255,255,0.65)",
     fontFamily: "Poppins_400Regular",
-    marginBottom: 8,
-  },
-
-  hourlyIcon: {
-    fontSize: 24,
-    marginBottom: 8,
+    marginTop: 4,
   },
 
   hourlyTemp: {
     fontSize: 16,
     color: "#FFFFFF",
     fontFamily: "Poppins_600SemiBold",
+    marginBottom: 4,
   },
 });
